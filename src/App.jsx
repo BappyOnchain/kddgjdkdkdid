@@ -91,6 +91,122 @@ const parseTokenAmount = (value, decimals = 18) => {
    TOAST SYSTEM
    ════════════════════════════════════════════════════════════ */
 
+/* ════════════════════════════════════════════════════════════
+   TX OVERLAY (loading animation during transactions)
+   ════════════════════════════════════════════════════════════ */
+
+const TxContext = createContext(null)
+
+const TxProvider = ({ children }) => {
+  const [tx, setTx] = useState(null) // { hash, message, status: 'pending'|'success'|'error' }
+
+  const showTx = useCallback((message, hash) => {
+    setTx({ message, hash, status: 'pending' })
+  }, [])
+
+  const successTx = useCallback((message, hash) => {
+    setTx({ message, hash, status: 'success' })
+    setTimeout(() => setTx(null), 4000)
+  }, [])
+
+  const errorTx = useCallback(() => {
+    setTx(null)
+  }, [])
+
+  const clearTx = useCallback(() => setTx(null), [])
+
+  return (
+    <TxContext.Provider value={{ showTx, successTx, errorTx, clearTx }}>
+      {children}
+      {tx && <TxOverlay tx={tx} onClose={clearTx} />}
+    </TxContext.Provider>
+  )
+}
+
+const useTx = () => {
+  const ctx = useContext(TxContext)
+  if (!ctx) throw new Error('useTx must be within TxProvider')
+  return ctx
+}
+
+const TxOverlay = ({ tx, onClose }) => (
+  <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="relative mx-4 w-full max-w-sm rounded-2xl bg-dark-card border border-dark-border shadow-2xl p-8 flex flex-col items-center gap-5">
+
+      {/* close button */}
+      {tx.status !== 'pending' && (
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </button>
+      )}
+
+      {/* spinner or success icon */}
+      {tx.status === 'pending' ? (
+        <div className="relative w-20 h-20">
+          <svg className="w-20 h-20 animate-spin" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="34" stroke="#1E2433" strokeWidth="6" />
+            <circle
+              cx="40" cy="40" r="34"
+              stroke="url(#spinGrad)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray="213"
+              strokeDashoffset="160"
+            />
+            <defs>
+              <linearGradient id="spinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#00F0FF" />
+                <stop offset="100%" stopColor="#8B5CF6" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <svg viewBox="0 0 20 20" fill="none" stroke="#00F0FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+              <circle cx="10" cy="10" r="7.25" />
+              <path d="M10 6v4l2.5 1.5" />
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <div className="w-20 h-20 rounded-full bg-green-400/10 flex items-center justify-center">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-10 h-10 text-green-400">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+          </svg>
+        </div>
+      )}
+
+      {/* message */}
+      <div className="text-center">
+        <p className="text-base font-semibold text-white mb-1">{tx.message}</p>
+        <p className="text-xs text-gray-500">
+          {tx.status === 'pending' ? 'Please wait, do not close this page...' : 'Transaction confirmed!'}
+        </p>
+      </div>
+
+      {/* tx hash link */}
+      {tx.hash && (
+        <a
+          href={`${SEPOLIA_EXPLORER}/tx/${tx.hash}`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-bg border border-dark-border hover:border-cyan-400/50 transition-colors w-full justify-center"
+        >
+          <span className="text-xs text-gray-400 font-mono truncate">
+            {tx.hash.slice(0, 12)}...{tx.hash.slice(-8)}
+          </span>
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0">
+            <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clipRule="evenodd" />
+          </svg>
+          <span className="text-xs text-cyan-400 font-semibold flex-shrink-0">Etherscan ↗</span>
+        </a>
+      )}
+    </div>
+  </div>
+)
+
 const ToastContext = createContext(null)
 let toastIdCounter = 0
 
@@ -186,6 +302,7 @@ const useTheme = () => {
 
 const useStaking = () => {
   const { addToast } = useToast()
+  const { showTx, successTx, errorTx } = useTx()
   const [account, setAccount] = useState(null)
   const [chainId, setChainId] = useState(null)
   const [provider, setProvider] = useState(null)
@@ -201,10 +318,13 @@ const useStaking = () => {
     remainingTime: 0n,
     periodFinish: 0n,
     rewardRate: 0n,
+    allowance: 0n,
+    usdcBalance: 0n,
     decimals: 6,
     symbol: 'USDC',
   })
   const [loadingStats, setLoadingStats] = useState(false)
+  const [approving, setApproving] = useState(false)
 
   const getEthereum = () => (typeof window !== 'undefined' ? window.ethereum : null)
 
@@ -215,6 +335,7 @@ const useStaking = () => {
     try {
       const roProvider = new ethers.JsonRpcProvider(SEPOLIA_RPC)
       const roContract = new ethers.Contract(CONTRACT_ADDRESS, STAKING_ABI, roProvider)
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, roProvider)
 
       const [totalStaked, apr, remainingTime] = await Promise.all([
         roContract.totalStaked(),
@@ -224,10 +345,14 @@ const useStaking = () => {
 
       let userStaked = 0n
       let userEarned = 0n
+      let allowance = 0n
+      let usdcBalance = 0n
       if (addr) {
-        ;[userStaked, userEarned] = await Promise.all([
+        ;[userStaked, userEarned, allowance, usdcBalance] = await Promise.all([
           roContract.stakedBalance(addr),
           roContract.earned(addr),
+          usdcContract.allowance(addr, CONTRACT_ADDRESS),
+          usdcContract.balanceOf(addr),
         ])
       }
 
@@ -238,6 +363,8 @@ const useStaking = () => {
         remainingTime,
         userStaked,
         userEarned,
+        allowance,
+        usdcBalance,
       }))
     } catch (err) {
       console.error('Stats fetch error:', err)
@@ -333,18 +460,19 @@ const useStaking = () => {
     return () => clearInterval(interval)
   }, [account, fetchStatsPublic])
 
-  /* ── Transaction wrapper with toast feedback ── */
+  /* ── Transaction wrapper with overlay feedback ── */
   const sendTx = useCallback(
     async (fn, successMsg) => {
       try {
         const tx = await fn()
-        addToast('Transaction submitted...', 'pending', tx.hash, 8000)
+        showTx('Transaction Submitted', tx.hash)
         const receipt = await tx.wait()
-        addToast(successMsg, 'success', receipt.hash)
+        successTx(successMsg, receipt.hash)
         await fetchStatsPublic(account)
         return receipt
       } catch (err) {
         console.error(err)
+        errorTx()
         if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
           addToast('Transaction rejected', 'error')
         } else {
@@ -353,7 +481,35 @@ const useStaking = () => {
         throw err
       }
     },
-    [account, addToast, fetchStatsPublic]
+    [account, addToast, fetchStatsPublic, showTx, successTx, errorTx]
+  )
+
+  const approveUSDC = useCallback(
+    async (amount, decimals = 6) => {
+      if (!signer) return addToast('Connect wallet first', 'error')
+      setApproving(true)
+      try {
+        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer)
+        const parsedAmount = parseTokenAmount(amount, decimals)
+        const tx = await usdcContract.approve(CONTRACT_ADDRESS, parsedAmount)
+        showTx('Approving USDC...', tx.hash)
+        await tx.wait()
+        successTx('USDC approved — you can now stake!', tx.hash)
+        await fetchStatsPublic(account)
+      } catch (err) {
+        console.error(err)
+        errorTx()
+        if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
+          addToast('Approval rejected', 'error')
+        } else {
+          addToast(err.shortMessage || err.reason || 'Approval failed', 'error')
+        }
+        throw err
+      } finally {
+        setApproving(false)
+      }
+    },
+    [signer, account, addToast, fetchStatsPublic, showTx, successTx, errorTx]
   )
 
   const stake = useCallback(
@@ -398,6 +554,8 @@ const useStaking = () => {
     disconnectWallet,
     stats,
     loadingStats,
+    approving,
+    approveUSDC,
     stake,
     withdraw,
     claimReward,
@@ -559,7 +717,7 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
         ) : (
           <span className="w-2 h-2 rounded-full bg-gray-500" />
         )}
-        <span className="hidden sm:inline">{connecting ? 'Connecting...' : 'Wallet connect'}</span>
+        <span className="text-sm">{connecting ? 'Connecting...' : 'Wallet connect'}</span>
       </button>
     )
   }
@@ -734,10 +892,30 @@ const StakePanel = ({ staking }) => {
   const [mode, setMode] = useState('stake') // stake | withdraw
   const [submitting, setSubmitting] = useState(false)
 
-  const maxAmount = mode === 'stake' ? null : ethers.formatUnits(staking.stats.userStaked, staking.stats.decimals)
+  const maxAmount =
+    mode === 'stake'
+      ? ethers.formatUnits(staking.stats.usdcBalance, staking.stats.decimals)
+      : ethers.formatUnits(staking.stats.userStaked, staking.stats.decimals)
 
-  const handleMax = () => {
-    if (mode === 'withdraw') setAmount(maxAmount)
+  const needsApproval = (() => {
+    if (mode !== 'stake' || !amount || parseFloat(amount) <= 0) return false
+    try {
+      const parsed = parseTokenAmount(amount, staking.stats.decimals)
+      return parsed > staking.stats.allowance
+    } catch {
+      return false
+    }
+  })()
+
+  const handleMax = () => setAmount(maxAmount)
+
+  const handleApprove = async () => {
+    if (!amount || parseFloat(amount) <= 0) return
+    try {
+      await staking.approveUSDC(amount, staking.stats.decimals)
+    } catch {
+      // toast already shown
+    }
   }
 
   const handleSubmit = async () => {
@@ -787,24 +965,44 @@ const StakePanel = ({ staking }) => {
             placeholder="0.0"
             className="flex-1 bg-transparent outline-none text-lg font-medium placeholder-gray-600 min-w-0"
           />
-          {mode === 'withdraw' && (
-            <button onClick={handleMax} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex-shrink-0 ml-2">
-              MAX
-            </button>
-          )}
+          <button onClick={handleMax} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex-shrink-0 ml-2">
+            MAX
+          </button>
         </div>
-        <button
-          onClick={handleSubmit}
-          disabled={!staking.account || submitting || !amount}
-          className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
-        >
-          {submitting ? '...' : mode === 'stake' ? 'Stake' : 'Withdraw'}
-        </button>
+
+        {mode === 'stake' && needsApproval ? (
+          <button
+            onClick={handleApprove}
+            disabled={!staking.account || staking.approving || !amount}
+            className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
+          >
+            {staking.approving ? 'Approving...' : 'Approve USDC'}
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!staking.account || submitting || !amount}
+            className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
+          >
+            {submitting ? '...' : mode === 'stake' ? 'Stake' : 'Withdraw'}
+          </button>
+        )}
       </div>
+
+      {mode === 'stake' && needsApproval && (
+        <p className="text-xs text-yellow-400 mt-2.5">
+          First-time staking requires approving USDC spending. This is a one-time transaction per amount.
+        </p>
+      )}
 
       <div className="flex items-center justify-between mt-4 text-xs text-gray-500">
         <span>
           Staked balance: {formatTokenAmount(staking.stats.userStaked, staking.stats.decimals)} {staking.stats.symbol}
+          {staking.account && (
+            <span className="ml-3">
+              Wallet: {formatTokenAmount(staking.stats.usdcBalance, staking.stats.decimals)} {staking.stats.symbol}
+            </span>
+          )}
         </span>
         {staking.account && staking.stats.userEarned > 0n && (
           <button onClick={staking.claimReward} className="text-cyan-400 hover:text-cyan-300 font-semibold">
@@ -817,70 +1015,60 @@ const StakePanel = ({ staking }) => {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AREA CHART (pure SVG, no external lib)
+   REWARD SNAPSHOT CHART (real on-chain data, no fabricated history)
    ════════════════════════════════════════════════════════════ */
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Aug']
+const RewardSnapshotChart = ({ stats }) => {
+  const staked = parseFloat(ethers.formatUnits(stats.userStaked, stats.decimals))
+  const earned = parseFloat(ethers.formatUnits(stats.userEarned, stats.decimals))
+  const total = parseFloat(ethers.formatUnits(stats.totalStaked, stats.decimals))
 
-const AreaChart = ({ data }) => {
-  const width = 1000
-  const height = 280
-  const padding = { top: 20, right: 20, bottom: 30, left: 40 }
-  const chartW = width - padding.left - padding.right
-  const chartH = height - padding.top - padding.bottom
-  const maxVal = 150
+  const hasData = staked > 0 || earned > 0 || total > 0
 
-  const points = data.map((val, i) => {
-    const x = padding.left + (i / (data.length - 1)) * chartW
-    const y = padding.top + chartH - (val / maxVal) * chartH
-    return { x, y }
-  })
+  if (!hasData) {
+    return (
+      <div className="gradient-border glow-cyan relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-5 sm:p-6">
+        <h3 className="text-sm font-semibold text-gray-300 mb-1">Reward Snapshot</h3>
+        <p className="text-xs text-gray-500 mb-6">
+          This contract does not yet have an on-chain history indexer — figures shown are live current-state values only.
+        </p>
+        <div className="flex flex-col items-center justify-center py-10 text-gray-500">
+          <span className="text-sm">No staking activity yet</span>
+          <span className="text-xs mt-1">Stake USDC to start seeing your position here</span>
+        </div>
+      </div>
+    )
+  }
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + chartH} L ${points[0].x} ${padding.top + chartH} Z`
-
-  const yLabels = [0, 50, 100, 150]
+  const bars = [
+    { label: 'Your Stake', value: staked, color: '#00F0FF' },
+    { label: 'Your Rewards', value: earned, color: '#8B5CF6' },
+    { label: 'Protocol Total', value: total, color: '#67E8F9' },
+  ]
+  const maxVal = Math.max(...bars.map((b) => b.value), 1)
 
   return (
-    <div className="gradient-border glow-cyan relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-5 sm:p-6 overflow-x-auto scrollbar-hide">
-      <h3 className="text-sm font-semibold text-gray-300 mb-4">Reward Accrual Over Time</h3>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[600px]" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="areaFill" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id="lineStroke" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#00F0FF" />
-            <stop offset="100%" stopColor="#8B5CF6" />
-          </linearGradient>
-        </defs>
-
-        {yLabels.map((label) => {
-          const y = padding.top + chartH - (label / maxVal) * chartH
-          return (
-            <g key={label}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#1E2433" strokeWidth="1" />
-              <text x={padding.left - 10} y={y + 4} textAnchor="end" fontSize="11" fill="#6B7280">
-                {label}
-              </text>
-            </g>
-          )
-        })}
-
-        <path d={areaPath} fill="url(#areaFill)" />
-        <path d={linePath} fill="none" stroke="url(#lineStroke)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#0B0E14" stroke="#00F0FF" strokeWidth="2" />
+    <div className="gradient-border glow-cyan relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-5 sm:p-6">
+      <h3 className="text-sm font-semibold text-gray-300 mb-1">Reward Snapshot</h3>
+      <p className="text-xs text-gray-500 mb-6">Live current-state values read directly from the contract.</p>
+      <div className="flex flex-col gap-4">
+        {bars.map((bar) => (
+          <div key={bar.label}>
+            <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+              <span>{bar.label}</span>
+              <span className="font-semibold text-white">
+                {bar.value.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDC
+              </span>
+            </div>
+            <div className="h-2.5 rounded-full bg-dark-bg overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${Math.max(2, (bar.value / maxVal) * 100)}%`, backgroundColor: bar.color }}
+              />
+            </div>
+          </div>
         ))}
-
-        {MONTHS.map((m, i) => (
-          <text key={m} x={points[i].x} y={height - 6} textAnchor="middle" fontSize="11" fill="#6B7280">
-            {m}
-          </text>
-        ))}
-      </svg>
+      </div>
     </div>
   )
 }
@@ -890,7 +1078,6 @@ const AreaChart = ({ data }) => {
    ════════════════════════════════════════════════════════════ */
 
 const DashboardView = ({ staking }) => {
-  const chartData = [10, 45, 38, 70, 75, 105, 105, 150]
   return (
     <>
       <StatsRow stats={staking.stats} />
@@ -898,15 +1085,182 @@ const DashboardView = ({ staking }) => {
         <StakePanel staking={staking} />
         <ProgressRing stats={staking.stats} />
       </div>
-      <AreaChart data={chartData} />
+      <RewardSnapshotChart stats={staking.stats} />
     </>
   )
 }
 
-const PlaceholderView = ({ title }) => (
-  <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-10 text-center text-gray-400">
-    <p className="text-lg font-semibold mb-1">{title}</p>
-    <p className="text-sm">This section is under construction.</p>
+/* ════════════════════════════════════════════════════════════
+   REWARDS VIEW
+   ════════════════════════════════════════════════════════════ */
+
+const RewardsView = ({ staking }) => {
+  const earned = formatTokenAmount(staking.stats.userEarned, staking.stats.decimals)
+  const rate = staking.stats.rewardRate
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="gradient-border glow-violet relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6 sm:p-8 text-center">
+        <p className="text-sm text-gray-400 mb-2">Claimable Rewards</p>
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <img src={USDC_LOGO} alt="USDC" className="w-8 h-8 rounded-full" />
+          <span className="text-4xl font-bold">{earned}</span>
+          <span className="text-sm text-gray-500 font-semibold">USDC</span>
+        </div>
+        <button
+          onClick={staking.claimReward}
+          disabled={!staking.account || staking.stats.userEarned === 0n}
+          className="px-8 py-3 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+        >
+          Claim Rewards
+        </button>
+        {!staking.account && <p className="text-xs text-gray-500 mt-3">Connect your wallet to view and claim rewards</p>}
+      </div>
+
+      <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+        <h3 className="text-sm font-semibold text-gray-300 mb-4">Reward Details</h3>
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Current APR</span>
+            <span className="font-semibold">{formatAPR(staking.stats.apr)}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Your staked balance</span>
+            <span className="font-semibold">{formatTokenAmount(staking.stats.userStaked, staking.stats.decimals)} USDC</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Reward period ends in</span>
+            <span className="font-semibold">
+              {Number(staking.stats.remainingTime) > 0 ? `${Math.floor(Number(staking.stats.remainingTime) / 86400)}d` : 'Ended'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   ANALYTICS VIEW
+   ════════════════════════════════════════════════════════════ */
+
+const AnalyticsView = ({ staking }) => {
+  const totalStaked = parseFloat(ethers.formatUnits(staking.stats.totalStaked, staking.stats.decimals))
+  const userStaked = parseFloat(ethers.formatUnits(staking.stats.userStaked, staking.stats.decimals))
+  const sharePct = totalStaked > 0 ? ((userStaked / totalStaked) * 100).toFixed(2) : '0.00'
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="gradient-border glow-cyan relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+          <p className="text-sm text-gray-400 mb-2">Your Pool Share</p>
+          <p className="text-3xl font-bold">{sharePct}%</p>
+        </div>
+        <div className="gradient-border glow-violet relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+          <p className="text-sm text-gray-400 mb-2">Protocol Status</p>
+          <p className="text-3xl font-bold">{staking.stats.remainingTime > 0n ? 'Active' : 'Ended'}</p>
+        </div>
+      </div>
+      <RewardSnapshotChart stats={staking.stats} />
+      <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+        <h3 className="text-sm font-semibold text-gray-300 mb-4">Contract Info</h3>
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Staking contract</span>
+            <a
+              href={`${SEPOLIA_EXPLORER}/address/${CONTRACT_ADDRESS}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-cyan-400 hover:text-cyan-300"
+            >
+              {shortenAddress(CONTRACT_ADDRESS)} ↗
+            </a>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Token</span>
+            <a
+              href={`${SEPOLIA_EXPLORER}/address/${USDC_ADDRESS}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-cyan-400 hover:text-cyan-300"
+            >
+              {shortenAddress(USDC_ADDRESS)} ↗
+            </a>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Network</span>
+            <span className="font-semibold">Sepolia Testnet</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   SETTINGS VIEW
+   ════════════════════════════════════════════════════════════ */
+
+const SettingsView = ({ staking, theme, toggleTheme }) => (
+  <div className="flex flex-col gap-5">
+    <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">Appearance</h3>
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-400">Theme</span>
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-dark-bg border border-dark-border text-sm font-medium"
+        >
+          {theme === 'dark' ? Icon.moon('w-4 h-4') : Icon.sun('w-4 h-4')}
+          {theme === 'dark' ? 'Dark' : 'Light'}
+        </button>
+      </div>
+    </div>
+
+    <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">Wallet</h3>
+      {staking.account ? (
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Connected address</span>
+            <span className="font-mono">{shortenAddress(staking.account)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Network</span>
+            <span className={staking.isCorrectNetwork ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+              {staking.isCorrectNetwork ? 'Sepolia ✓' : 'Wrong network'}
+            </span>
+          </div>
+          <button
+            onClick={staking.disconnectWallet}
+            className="mt-2 px-4 py-2 rounded-lg bg-red-400/10 text-red-400 text-sm font-semibold hover:bg-red-400/20 transition-colors w-fit"
+          >
+            Disconnect Wallet
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={staking.connectWallet}
+          className="px-5 py-2.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg hover:opacity-90 transition-opacity"
+        >
+          Connect Wallet
+        </button>
+      )}
+    </div>
+
+    <div className="gradient-border relative rounded-2xl bg-dark-card/60 backdrop-blur-md p-6">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">Danger Zone</h3>
+      <p className="text-xs text-gray-500 mb-3">
+        Emergency withdraw lets you pull your staked USDC immediately, even if the protocol is paused. Any pending rewards will be forfeited.
+      </p>
+      <button
+        onClick={staking.emergencyWithdraw}
+        disabled={!staking.account || staking.stats.userStaked === 0n}
+        className="px-4 py-2 rounded-lg bg-red-400/10 text-red-400 text-sm font-semibold hover:bg-red-400/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Emergency Withdraw
+      </button>
+    </div>
   </div>
 )
 
@@ -922,12 +1276,28 @@ const AppInner = () => {
 
   const titles = { dashboard: 'Dashboard', stake: 'Stake', rewards: 'Rewards', analytics: 'Analytics', settings: 'Settings' }
 
+  const renderView = () => {
+    switch (active) {
+      case 'dashboard':
+      case 'stake':
+        return <DashboardView staking={staking} />
+      case 'rewards':
+        return <RewardsView staking={staking} />
+      case 'analytics':
+        return <AnalyticsView staking={staking} />
+      case 'settings':
+        return <SettingsView staking={staking} theme={theme} toggleTheme={toggleTheme} />
+      default:
+        return <DashboardView staking={staking} />
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-dark-bg">
       <Sidebar active={active} setActive={setActive} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 min-w-0">
         <TopBar title={titles[active]} staking={staking} theme={theme} toggleTheme={toggleTheme} setMobileOpen={setMobileOpen} />
-        {active === 'dashboard' || active === 'stake' ? <DashboardView staking={staking} /> : <PlaceholderView title={titles[active]} />}
+        {renderView()}
       </main>
     </div>
   )
@@ -936,7 +1306,9 @@ const AppInner = () => {
 export default function App() {
   return (
     <ToastProvider>
-      <AppInner />
+      <TxProvider>
+        <AppInner />
+      </TxProvider>
     </ToastProvider>
   )
 }

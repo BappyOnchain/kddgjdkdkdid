@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
 import { ethers } from 'ethers'
+import { createAppKit } from '@reown/appkit'
+import { EthersAdapter } from '@reown/appkit-adapter-ethers'
+import { sepolia } from '@reown/appkit/networks'
 
 /* ════════════════════════════════════════════════════════════
    CONFIG
@@ -14,13 +17,28 @@ const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7'
 const SEPOLIA_RPC = 'https://rpc.sepolia.org'
 const SEPOLIA_EXPLORER = 'https://sepolia.etherscan.io'
 
-const SEPOLIA_PARAMS = {
-  chainId: SEPOLIA_CHAIN_ID_HEX,
-  chainName: 'Sepolia Testnet',
-  nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
-  rpcUrls: [SEPOLIA_RPC],
-  blockExplorerUrls: [SEPOLIA_EXPLORER],
-}
+/* ── Reown AppKit init (runs once at module load) ── */
+const ethersAdapter = new EthersAdapter()
+const appKit = createAppKit({
+  adapters: [ethersAdapter],
+  networks: [sepolia],
+  defaultNetwork: sepolia,
+  projectId: REOWN_PROJECT_ID,
+  metadata: {
+    name: 'StakingProtocol',
+    description: 'Professional ERC20 Staking Protocol by BappyOnchain',
+    url: typeof window !== 'undefined' ? window.location.origin : 'https://staking-dapp.vercel.app',
+    icons: ['https://assets.coingecko.com/coins/images/6319/standard/usdc.png'],
+  },
+  features: { analytics: false, email: false, socials: false },
+  themeVariables: {
+    '--w3m-color-mix': '#00F0FF',
+    '--w3m-color-mix-strength': 20,
+    '--w3m-accent': '#00F0FF',
+    '--w3m-border-radius-master': '8px',
+    '--w3m-z-index': 300,
+  },
+})
 
 const STAKING_ABI = [
   'function totalStaked() external view returns (uint256)',
@@ -326,8 +344,6 @@ const useStaking = () => {
   const [loadingStats, setLoadingStats] = useState(false)
   const [approving, setApproving] = useState(false)
 
-  const getEthereum = () => (typeof window !== 'undefined' ? window.ethereum : null)
-
   const isCorrectNetwork = chainId === SEPOLIA_CHAIN_ID
 
   /* ── Build read-only contract for stats even without wallet connected ── */
@@ -371,56 +387,22 @@ const useStaking = () => {
     }
   }, [])
 
-  /* ── Connect wallet ── */
+  /* ── Connect via Reown AppKit modal ── */
   const connectWallet = useCallback(async () => {
-    const eth = getEthereum()
-    if (!eth) {
-      addToast('No wallet found. Please install MetaMask or Rabby.', 'error')
-      return
-    }
-    setConnecting(true)
     try {
-      const accounts = await eth.request({ method: 'eth_requestAccounts' })
-      const browserProvider = new ethers.BrowserProvider(eth)
-      const network = await browserProvider.getNetwork()
-      const currentChainId = Number(network.chainId)
-
-      if (currentChainId !== SEPOLIA_CHAIN_ID) {
-        try {
-          await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }] })
-        } catch (switchErr) {
-          if (switchErr.code === 4902) {
-            await eth.request({ method: 'wallet_addEthereumChain', params: [SEPOLIA_PARAMS] })
-          } else {
-            throw switchErr
-          }
-        }
-      }
-
-      const finalProvider = new ethers.BrowserProvider(eth)
-      const finalSigner = await finalProvider.getSigner()
-      const finalNetwork = await finalProvider.getNetwork()
-      const stakingContract = new ethers.Contract(CONTRACT_ADDRESS, STAKING_ABI, finalSigner)
-
-      setProvider(finalProvider)
-      setSigner(finalSigner)
-      setContract(stakingContract)
-      setAccount(accounts[0])
-      setChainId(Number(finalNetwork.chainId))
-      addToast('Wallet connected successfully', 'success')
+      await appKit.open()
     } catch (err) {
       console.error(err)
-      if (err.code === 4001) {
-        addToast('Connection rejected by user', 'error')
-      } else {
-        addToast(err.shortMessage || err.message || 'Failed to connect wallet', 'error')
-      }
-    } finally {
-      setConnecting(false)
+      addToast('Failed to open wallet modal', 'error')
     }
   }, [addToast])
 
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
+    try {
+      await appKit.disconnect()
+    } catch (err) {
+      console.error(err)
+    }
     setAccount(null)
     setSigner(null)
     setContract(null)
@@ -428,30 +410,47 @@ const useStaking = () => {
     addToast('Wallet disconnected', 'info')
   }, [addToast])
 
-  /* ── Listen for account / chain changes ── */
+  /* ── Subscribe to Reown AppKit state changes ── */
   useEffect(() => {
-    const eth = getEthereum()
-    if (!eth) return
+    const unsub = appKit.subscribeAccount(async (state) => {
+      const addr = state?.address
+      const status = state?.status
 
-    const handleAccountsChanged = (accounts) => {
-      if (accounts.length === 0) {
-        disconnectWallet()
-      } else {
-        setAccount(accounts[0])
+      if (status === 'connected' && addr) {
+        try {
+          const walletProvider = appKit.getWalletProvider()
+          if (!walletProvider) return
+          const browserProvider = new ethers.BrowserProvider(walletProvider)
+          const network = await browserProvider.getNetwork()
+          const signerObj = await browserProvider.getSigner()
+          const stakingContract = new ethers.Contract(CONTRACT_ADDRESS, STAKING_ABI, signerObj)
+
+          setAccount(addr)
+          setChainId(Number(network.chainId))
+          setProvider(browserProvider)
+          setSigner(signerObj)
+          setContract(stakingContract)
+          addToast('Wallet connected!', 'success')
+        } catch (err) {
+          console.error('AppKit state error:', err)
+        }
+      } else if (status === 'disconnected') {
+        setAccount(null)
+        setSigner(null)
+        setContract(null)
+        setChainId(null)
       }
-    }
-    const handleChainChanged = (newChainIdHex) => {
-      setChainId(parseInt(newChainIdHex, 16))
-    }
+    })
+    return () => unsub?.()
+  }, [addToast])
 
-    eth.on?.('accountsChanged', handleAccountsChanged)
-    eth.on?.('chainChanged', handleChainChanged)
-
-    return () => {
-      eth.removeListener?.('accountsChanged', handleAccountsChanged)
-      eth.removeListener?.('chainChanged', handleChainChanged)
-    }
-  }, [disconnectWallet])
+  /* ── Subscribe to network changes ── */
+  useEffect(() => {
+    const unsub = appKit.subscribeNetwork((network) => {
+      if (network?.chainId) setChainId(Number(network.chainId))
+    })
+    return () => unsub?.()
+  }, [])
 
   /* ── Poll stats every 15s ── */
   useEffect(() => {

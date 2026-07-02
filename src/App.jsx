@@ -14,7 +14,7 @@ const USDC_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/standard/usdc.png'
 const SEPOLIA_CHAIN_ID = 11155111
 const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7'
-const SEPOLIA_RPC = 'https://rpc.sepolia.org'
+const SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com'
 const SEPOLIA_EXPLORER = 'https://sepolia.etherscan.io'
 
 /* ── Reown AppKit init (runs once at module load) ── */
@@ -711,21 +711,17 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
       <button
         onClick={connectWallet}
         disabled={connecting}
-        className="relative flex items-center gap-2.5 px-5 py-2.5 rounded-full font-semibold text-sm text-dark-bg disabled:opacity-60 overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #00F0FF, #8B5CF6)' }}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-dark-card border border-dark-border hover:border-cyan-400/50 transition-colors text-sm font-medium disabled:opacity-60 whitespace-nowrap"
       >
-        <span className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
         {connecting ? (
-          <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
         ) : (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 flex-shrink-0">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-          </svg>
+          <span className="w-2 h-2 rounded-full bg-gray-500 flex-shrink-0" />
         )}
-        <span>{connecting ? 'Connecting...' : 'Connect Wallet'}</span>
+        <span className="text-sm">{connecting ? 'Connecting...' : 'Wallet connect'}</span>
       </button>
     )
   }
@@ -734,16 +730,15 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
     <div className="relative" ref={ref}>
       <button
         onClick={() => setDropdownOpen((o) => !o)}
-        className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-dark-card border border-cyan-400/30 hover:border-cyan-400/70 transition-all text-sm font-medium"
+        className={`flex items-center gap-2 px-4 py-2.5 rounded-full bg-dark-card border ${
+          isCorrectNetwork ? 'border-dark-border' : 'border-red-500/50'
+        } hover:border-cyan-400/50 transition-colors text-sm font-medium`}
       >
-        <span className="relative flex h-2.5 w-2.5">
+        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400"></span>
         </span>
         <span className="text-sm font-mono">{shortenAddress(account)}</span>
-        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-gray-400">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
       </button>
 
       {dropdownOpen && (
@@ -780,17 +775,17 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
 }
 
 const TopBar = ({ title, staking, theme, toggleTheme, setMobileOpen }) => (
-  <div className="flex items-center justify-between mb-6 sm:mb-8">
-    <div className="flex items-center gap-3">
-      <button className="lg:hidden text-gray-300" onClick={() => setMobileOpen(true)}>
+  <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
+    <div className="flex items-center gap-3 min-w-0">
+      <button className="lg:hidden text-gray-300 flex-shrink-0" onClick={() => setMobileOpen(true)}>
         {Icon.menu()}
       </button>
-      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{title}</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">{title}</h1>
     </div>
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex items-center gap-2 flex-shrink-0">
       <button
         onClick={toggleTheme}
-        className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-card border border-dark-border hover:border-cyan-400/50 transition-colors text-gray-300"
+        className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-card border border-dark-border hover:border-cyan-400/50 transition-colors text-gray-300 flex-shrink-0"
         aria-label="Toggle theme"
       >
         {theme === 'dark' ? Icon.moon() : Icon.sun()}
@@ -802,7 +797,7 @@ const TopBar = ({ title, staking, theme, toggleTheme, setMobileOpen }) => (
         disconnectWallet={staking.disconnectWallet}
         isCorrectNetwork={staking.isCorrectNetwork}
       />
-      <button className="hidden sm:flex w-10 h-10 items-center justify-center rounded-full bg-dark-card border border-dark-border text-gray-300 hover:border-cyan-400/50 transition-colors">
+      <button className="hidden sm:flex w-10 h-10 items-center justify-center rounded-full bg-dark-card border border-dark-border text-gray-300 hover:border-cyan-400/50 transition-colors flex-shrink-0">
         {Icon.bell()}
       </button>
     </div>
@@ -1298,7 +1293,7 @@ const AppInner = () => {
   return (
     <div className="flex min-h-screen bg-dark-bg">
       <Sidebar active={active} setActive={setActive} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 min-w-0">
+      <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 min-w-0 overflow-hidden">
         <TopBar title={titles[active]} staking={staking} theme={theme} toggleTheme={toggleTheme} setMobileOpen={setMobileOpen} />
         {renderView()}
       </main>

@@ -115,38 +115,6 @@ const parseTokenAmount = (value, decimals = 18) => {
 
 const TxContext = createContext(null)
 
-const TxProvider = ({ children }) => {
-  const [tx, setTx] = useState(null) // { hash, message, status: 'pending'|'success'|'error' }
-
-  const showTx = useCallback((message, hash) => {
-    setTx({ message, hash, status: 'pending' })
-  }, [])
-
-  const successTx = useCallback((message, hash) => {
-    setTx({ message, hash, status: 'success' })
-    setTimeout(() => setTx(null), 4000)
-  }, [])
-
-  const errorTx = useCallback(() => {
-    setTx(null)
-  }, [])
-
-  const clearTx = useCallback(() => setTx(null), [])
-
-  return (
-    <TxContext.Provider value={{ showTx, successTx, errorTx, clearTx }}>
-      {children}
-      {tx && <TxOverlay tx={tx} onClose={clearTx} />}
-    </TxContext.Provider>
-  )
-}
-
-const useTx = () => {
-  const ctx = useContext(TxContext)
-  if (!ctx) throw new Error('useTx must be within TxProvider')
-  return ctx
-}
-
 const TxOverlay = ({ tx, onClose }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
     <div className="relative mx-4 w-full max-w-sm rounded-2xl bg-dark-card border border-dark-border shadow-2xl p-8 flex flex-col items-center gap-5">
@@ -165,14 +133,7 @@ const TxOverlay = ({ tx, onClose }) => (
         <div className="relative w-20 h-20">
           <svg className="w-20 h-20 animate-spin" viewBox="0 0 80 80" fill="none">
             <circle cx="40" cy="40" r="34" stroke="#1E2433" strokeWidth="6" />
-            <circle
-              cx="40" cy="40" r="34"
-              stroke="url(#spinGrad)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray="213"
-              strokeDashoffset="160"
-            />
+            <circle cx="40" cy="40" r="34" stroke="url(#spinGrad)" strokeWidth="6" strokeLinecap="round" strokeDasharray="213" strokeDashoffset="160" />
             <defs>
               <linearGradient id="spinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#00F0FF" />
@@ -205,15 +166,9 @@ const TxOverlay = ({ tx, onClose }) => (
 
       {/* tx hash link */}
       {tx.hash && (
-        <a
-          href={`${SEPOLIA_EXPLORER}/tx/${tx.hash}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-bg border border-dark-border hover:border-cyan-400/50 transition-colors w-full justify-center"
-        >
-          <span className="text-xs text-gray-400 font-mono truncate">
-            {tx.hash.slice(0, 12)}...{tx.hash.slice(-8)}
-          </span>
+        <a href={`${SEPOLIA_EXPLORER}/tx/${tx.hash}`} target="_blank" rel="noreferrer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-bg border border-dark-border hover:border-cyan-400/50 transition-colors w-full justify-center">
+          <span className="text-xs text-gray-400 font-mono truncate">{tx.hash.slice(0, 12)}...{tx.hash.slice(-8)}</span>
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0">
             <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
             <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clipRule="evenodd" />
@@ -224,6 +179,38 @@ const TxOverlay = ({ tx, onClose }) => (
     </div>
   </div>
 )
+
+const TxProvider = ({ children }) => {
+  const [tx, setTx] = useState(null)
+
+  const showTx = useCallback((message, hash) => {
+    setTx({ message, hash, status: 'pending' })
+  }, [])
+
+  const successTx = useCallback((message, hash) => {
+    setTx({ message, hash, status: 'success' })
+    setTimeout(() => setTx(null), 4000)
+  }, [])
+
+  const errorTx = useCallback(() => {
+    setTx(null)
+  }, [])
+
+  const clearTx = useCallback(() => setTx(null), [])
+
+  return (
+    <TxContext.Provider value={{ showTx, successTx, errorTx, clearTx }}>
+      {children}
+      {tx && <TxOverlay tx={tx} onClose={clearTx} />}
+    </TxContext.Provider>
+  )
+}
+
+const useTx = () => {
+  const ctx = useContext(TxContext)
+  if (!ctx) throw new Error('useTx must be within TxProvider')
+  return ctx
+}
 
 const ToastContext = createContext(null)
 let toastIdCounter = 0
@@ -411,12 +398,18 @@ const useStaking = () => {
   }, [addToast])
 
   /* ── Subscribe to Reown AppKit state changes ── */
+  const connectedRef = useRef(false)
+  const addToastRef = useRef(null)
+  addToastRef.current = addToast
+
   useEffect(() => {
     const unsub = appKit.subscribeAccount(async (state) => {
       const addr = state?.address
       const status = state?.status
 
       if (status === 'connected' && addr) {
+        if (connectedRef.current === addr) return
+        connectedRef.current = addr
         try {
           const walletProvider = appKit.getWalletProvider()
           if (!walletProvider) return
@@ -430,11 +423,14 @@ const useStaking = () => {
           setProvider(browserProvider)
           setSigner(signerObj)
           setContract(stakingContract)
-          addToast('Wallet connected!', 'success')
+          addToastRef.current('Wallet connected!', 'success')
+          // fetch balance immediately with addr (don't wait for state update)
+          fetchStatsPublic(addr)
         } catch (err) {
           console.error('AppKit state error:', err)
         }
-      } else if (status === 'disconnected') {
+      } else if (status === 'disconnected' && connectedRef.current) {
+        connectedRef.current = false
         setAccount(null)
         setSigner(null)
         setContract(null)
@@ -442,7 +438,7 @@ const useStaking = () => {
       }
     })
     return () => unsub?.()
-  }, [addToast])
+  }, [])
 
   /* ── Subscribe to network changes ── */
   useEffect(() => {
@@ -483,25 +479,34 @@ const useStaking = () => {
     [account, addToast, fetchStatsPublic, showTx, successTx, errorTx]
   )
 
-  const approveUSDC = useCallback(
+  const approveAndStake = useCallback(
     async (amount, decimals = 6) => {
       if (!signer) return addToast('Connect wallet first', 'error')
       setApproving(true)
       try {
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer)
+        // Approve max uint256 — never need to approve again
+        const MAX_UINT256 = ethers.MaxUint256
+        const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, MAX_UINT256)
+        showTx('Approving USDC...', approveTx.hash)
+        await approveTx.wait()
+        addToast('Approved! Staking now...', 'success')
+        await fetchStatsPublic(account)
+        // Auto stake immediately after approval
+        const stakingContract = new ethers.Contract(CONTRACT_ADDRESS, STAKING_ABI, signer)
         const parsedAmount = parseTokenAmount(amount, decimals)
-        const tx = await usdcContract.approve(CONTRACT_ADDRESS, parsedAmount)
-        showTx('Approving USDC...', tx.hash)
-        await tx.wait()
-        successTx('USDC approved — you can now stake!', tx.hash)
+        const stakeTx = await stakingContract.stake(parsedAmount)
+        showTx('Staking USDC...', stakeTx.hash)
+        const receipt = await stakeTx.wait()
+        successTx('Staked successfully!', receipt.hash)
         await fetchStatsPublic(account)
       } catch (err) {
         console.error(err)
         errorTx()
         if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
-          addToast('Approval rejected', 'error')
+          addToast('Transaction rejected', 'error')
         } else {
-          addToast(err.shortMessage || err.reason || 'Approval failed', 'error')
+          addToast(err.shortMessage || err.reason || 'Failed', 'error')
         }
         throw err
       } finally {
@@ -512,7 +517,7 @@ const useStaking = () => {
   )
 
   const stake = useCallback(
-    (amount, decimals = 18) => {
+    (amount, decimals = 6) => {
       if (!contract) return addToast('Connect wallet first', 'error')
       const parsedAmount = parseTokenAmount(amount, decimals)
       return sendTx(() => contract.stake(parsedAmount), 'Staked successfully!')
@@ -521,10 +526,10 @@ const useStaking = () => {
   )
 
   const withdraw = useCallback(
-    (amount, decimals = 18) => {
+    (amount, decimals = 6) => {
       if (!contract) return addToast('Connect wallet first', 'error')
       const parsedAmount = parseTokenAmount(amount, decimals)
-      return sendTx(() => contract.withdraw(parsedAmount), 'Withdrawn successfully!')
+      return sendTx(() => contract.withdraw(parsedAmount), 'Unstaked successfully!')
     },
     [contract, sendTx, addToast]
   )
@@ -554,7 +559,7 @@ const useStaking = () => {
     stats,
     loadingStats,
     approving,
-    approveUSDC,
+    approveAndStake,
     stake,
     withdraw,
     claimReward,
@@ -888,41 +893,33 @@ const ProgressRing = ({ stats }) => {
 
 const StakePanel = ({ staking }) => {
   const [amount, setAmount] = useState('')
-  const [mode, setMode] = useState('stake') // stake | withdraw
+  const [mode, setMode] = useState('stake')
   const [submitting, setSubmitting] = useState(false)
 
-  const maxAmount =
-    mode === 'stake'
-      ? ethers.formatUnits(staking.stats.usdcBalance, staking.stats.decimals)
-      : ethers.formatUnits(staking.stats.userStaked, staking.stats.decimals)
+  const usdcBal = parseFloat(ethers.formatUnits(staking.stats.usdcBalance || 0n, staking.stats.decimals))
+  const stakedBal = parseFloat(ethers.formatUnits(staking.stats.userStaked || 0n, staking.stats.decimals))
+  const maxAmount = mode === 'stake' ? usdcBal : stakedBal
 
   const needsApproval = (() => {
     if (mode !== 'stake' || !amount || parseFloat(amount) <= 0) return false
     try {
       const parsed = parseTokenAmount(amount, staking.stats.decimals)
-      return parsed > staking.stats.allowance
-    } catch {
-      return false
-    }
+      return parsed > (staking.stats.allowance || 0n)
+    } catch { return false }
   })()
 
-  const handleMax = () => setAmount(maxAmount)
+  const handleMax = () => setAmount(maxAmount.toString())
 
-  const handleApprove = async () => {
-    if (!amount || parseFloat(amount) <= 0) return
-    try {
-      await staking.approveUSDC(amount, staking.stats.decimals)
-    } catch {
-      // toast already shown
-    }
-  }
-
-  const handleSubmit = async () => {
+  const handleAction = async () => {
     if (!amount || parseFloat(amount) <= 0) return
     setSubmitting(true)
     try {
       if (mode === 'stake') {
-        await staking.stake(amount, staking.stats.decimals)
+        if (needsApproval) {
+          await staking.approveAndStake(amount, staking.stats.decimals)
+        } else {
+          await staking.stake(amount, staking.stats.decimals)
+        }
       } else {
         await staking.withdraw(amount, staking.stats.decimals)
       }
@@ -932,6 +929,13 @@ const StakePanel = ({ staking }) => {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const btnLabel = () => {
+    if (submitting || staking.approving) return '...'
+    if (mode === 'unstake') return 'Unstake'
+    if (needsApproval) return 'Approve & Stake'
+    return 'Stake'
   }
 
   return (
@@ -945,10 +949,10 @@ const StakePanel = ({ staking }) => {
         </button>
         <span className="text-gray-600">/</span>
         <button
-          onClick={() => setMode('withdraw')}
-          className={`text-sm font-semibold transition-colors ${mode === 'withdraw' ? 'text-white' : 'text-gray-500'}`}
+          onClick={() => setMode('unstake')}
+          className={`text-sm font-semibold transition-colors ${mode === 'unstake' ? 'text-white' : 'text-gray-500'}`}
         >
-          Withdraw
+          Unstake
         </button>
       </div>
 
@@ -969,43 +973,31 @@ const StakePanel = ({ staking }) => {
           </button>
         </div>
 
-        {mode === 'stake' && needsApproval ? (
-          <button
-            onClick={handleApprove}
-            disabled={!staking.account || staking.approving || !amount}
-            className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
-          >
-            {staking.approving ? 'Approving...' : 'Approve USDC'}
-          </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={!staking.account || submitting || !amount}
-            className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
-          >
-            {submitting ? '...' : mode === 'stake' ? 'Stake' : 'Withdraw'}
-          </button>
-        )}
+        <button
+          onClick={handleAction}
+          disabled={!staking.account || submitting || staking.approving || !amount || parseFloat(amount) <= 0}
+          className="px-8 py-3.5 rounded-xl bg-gradient-cyan-violet font-bold text-dark-bg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
+        >
+          {btnLabel()}
+        </button>
       </div>
 
       {mode === 'stake' && needsApproval && (
         <p className="text-xs text-yellow-400 mt-2.5">
-          First-time staking requires approving USDC spending. This is a one-time transaction per amount.
+          First time — "Approve & Stake" will do both in 2 transactions. After this you can stake anytime without approving again.
         </p>
       )}
 
-      <div className="flex items-center justify-between mt-4 text-xs text-gray-500">
-        <span>
-          Staked balance: {formatTokenAmount(staking.stats.userStaked, staking.stats.decimals)} {staking.stats.symbol}
+      <div className="flex items-center justify-between mt-4 text-xs text-gray-500 flex-wrap gap-2">
+        <div className="flex gap-4">
+          <span>Staked: <span className="text-white font-medium">{formatTokenAmount(staking.stats.userStaked, staking.stats.decimals)} USDC</span></span>
           {staking.account && (
-            <span className="ml-3">
-              Wallet: {formatTokenAmount(staking.stats.usdcBalance, staking.stats.decimals)} {staking.stats.symbol}
-            </span>
+            <span>Wallet: <span className="text-white font-medium">{formatTokenAmount(staking.stats.usdcBalance, staking.stats.decimals)} USDC</span></span>
           )}
-        </span>
+        </div>
         {staking.account && staking.stats.userEarned > 0n && (
           <button onClick={staking.claimReward} className="text-cyan-400 hover:text-cyan-300 font-semibold">
-            Claim {formatTokenAmount(staking.stats.userEarned, staking.stats.decimals)} {staking.stats.symbol}
+            Claim {formatTokenAmount(staking.stats.userEarned, staking.stats.decimals)} USDC
           </button>
         )}
       </div>
@@ -1095,7 +1087,6 @@ const DashboardView = ({ staking }) => {
 
 const RewardsView = ({ staking }) => {
   const earned = formatTokenAmount(staking.stats.userEarned, staking.stats.decimals)
-  const rate = staking.stats.rewardRate
 
   return (
     <div className="flex flex-col gap-5">

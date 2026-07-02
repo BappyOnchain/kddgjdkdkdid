@@ -485,18 +485,17 @@ const useStaking = () => {
       setApproving(true)
       try {
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer)
-        // Approve max uint256 — never need to approve again
-        const MAX_UINT256 = ethers.MaxUint256
-        const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, MAX_UINT256)
-        showTx('Approving USDC...', approveTx.hash)
+        const parsedAmount = parseTokenAmount(amount, decimals)
+        // Approve exact amount only — safer, no unlimited approval
+        const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, parsedAmount)
+        showTx('Step 1/2: Approving USDC...', approveTx.hash)
         await approveTx.wait()
         addToast('Approved! Staking now...', 'success')
         await fetchStatsPublic(account)
         // Auto stake immediately after approval
         const stakingContract = new ethers.Contract(CONTRACT_ADDRESS, STAKING_ABI, signer)
-        const parsedAmount = parseTokenAmount(amount, decimals)
         const stakeTx = await stakingContract.stake(parsedAmount)
-        showTx('Staking USDC...', stakeTx.hash)
+        showTx('Step 2/2: Staking USDC...', stakeTx.hash)
         const receipt = await stakeTx.wait()
         successTx('Staked successfully!', receipt.hash)
         await fetchStatsPublic(account)
@@ -735,7 +734,7 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
         } hover:border-cyan-400/50 transition-colors text-sm font-medium`}
       >
         <span className={`w-2 h-2 rounded-full ${isCorrectNetwork ? 'bg-green-400' : 'bg-red-400'} flex-shrink-0`} />
-        <span className="hidden sm:inline">{shortenAddress(account)}</span>
+        <span className="text-sm">{shortenAddress(account)}</span>
       </button>
 
       {dropdownOpen && (

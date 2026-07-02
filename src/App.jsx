@@ -9,7 +9,7 @@ import { sepolia } from '@reown/appkit/networks'
    ════════════════════════════════════════════════════════════ */
 
 const REOWN_PROJECT_ID = '1724feb47aaa94102743462f8a84e693'
-const CONTRACT_ADDRESS = '0xa036ad353aBce14eb27F8140aD20B5b6cED241F9'
+const CONTRACT_ADDRESS = '0x9bD14eA64dEA9b130f7978b1D0498cc013427EBB'
 const USDC_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/standard/usdc.png'
 const SEPOLIA_CHAIN_ID = 11155111
@@ -424,8 +424,9 @@ const useStaking = () => {
           setSigner(signerObj)
           setContract(stakingContract)
           addToastRef.current('Wallet connected!', 'success')
-          // fetch balance immediately with addr (don't wait for state update)
+          // Fetch immediately and again after 2s to ensure balance loads
           fetchStatsPublic(addr)
+          setTimeout(() => fetchStatsPublic(addr), 2000)
         } catch (err) {
           console.error('AppKit state error:', err)
         }
@@ -710,17 +711,21 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
       <button
         onClick={connectWallet}
         disabled={connecting}
-        className="flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full bg-dark-card border border-dark-border hover:border-cyan-400/50 transition-colors text-sm font-medium disabled:opacity-60"
+        className="relative flex items-center gap-2.5 px-5 py-2.5 rounded-full font-semibold text-sm text-dark-bg disabled:opacity-60 overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #00F0FF, #8B5CF6)' }}
       >
+        <span className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
         {connecting ? (
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
         ) : (
-          <span className="w-2 h-2 rounded-full bg-gray-500" />
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 flex-shrink-0">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+          </svg>
         )}
-        <span className="text-sm">{connecting ? 'Connecting...' : 'Wallet connect'}</span>
+        <span>{connecting ? 'Connecting...' : 'Connect Wallet'}</span>
       </button>
     )
   }
@@ -729,12 +734,16 @@ const WalletPill = ({ account, connecting, connectWallet, disconnectWallet, isCo
     <div className="relative" ref={ref}>
       <button
         onClick={() => setDropdownOpen((o) => !o)}
-        className={`flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-full bg-dark-card border ${
-          isCorrectNetwork ? 'border-dark-border' : 'border-red-500/50'
-        } hover:border-cyan-400/50 transition-colors text-sm font-medium`}
+        className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-dark-card border border-cyan-400/30 hover:border-cyan-400/70 transition-all text-sm font-medium"
       >
-        <span className={`w-2 h-2 rounded-full ${isCorrectNetwork ? 'bg-green-400' : 'bg-red-400'} flex-shrink-0`} />
-        <span className="text-sm">{shortenAddress(account)}</span>
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400"></span>
+        </span>
+        <span className="text-sm font-mono">{shortenAddress(account)}</span>
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-gray-400">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
       </button>
 
       {dropdownOpen && (
@@ -895,8 +904,10 @@ const StakePanel = ({ staking }) => {
   const [mode, setMode] = useState('stake')
   const [submitting, setSubmitting] = useState(false)
 
-  const usdcBal = parseFloat(ethers.formatUnits(staking.stats.usdcBalance || 0n, staking.stats.decimals))
-  const stakedBal = parseFloat(ethers.formatUnits(staking.stats.userStaked || 0n, staking.stats.decimals))
+  const usdcBalRaw = staking.stats.usdcBalance || 0n
+  const stakedBalRaw = staking.stats.userStaked || 0n
+  const usdcBal = ethers.formatUnits(usdcBalRaw, staking.stats.decimals)
+  const stakedBal = ethers.formatUnits(stakedBalRaw, staking.stats.decimals)
   const maxAmount = mode === 'stake' ? usdcBal : stakedBal
 
   const needsApproval = (() => {
@@ -907,7 +918,10 @@ const StakePanel = ({ staking }) => {
     } catch { return false }
   })()
 
-  const handleMax = () => setAmount(maxAmount.toString())
+  const handleMax = () => {
+    const max = mode === 'stake' ? usdcBal : stakedBal
+    if (parseFloat(max) > 0) setAmount(max)
+  }
 
   const handleAction = async () => {
     if (!amount || parseFloat(amount) <= 0) return
